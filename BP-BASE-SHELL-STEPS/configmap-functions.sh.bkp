@@ -46,21 +46,27 @@ conflictkeys() {
 
     IFS=',' read -r -a NAMESPACE_ARRAY <<< "$CM_NAMESPACES"
 
-    key_exists() {
-    local key="$1"
-    local namespace="$2"
-    local service_name="$3"
-    kubectl get configmap "${service_name}-cm-${namespace}" -n "${namespace}" -o jsonpath="{.data}" | grep -q "\"${key}\":"
-    if [ $? -eq 0 ]; then
-        echo "Yes"
-    else
-        echo "No"
-    fi
-  }
+    declare -A keys_map  # Associative array to store keys for each namespace
+
 
     # Retrieve keys for ConfigMap in the source namespace
-      source_keys=$(kubectl get configmap "${SERVICE_NAME}-cm-${SOURCE_NAMESPACE}" -n "${SOURCE_NAMESPACE}" -o jsonpath="{.data}" | jq -r 'keys | .[]')
-  
+    source_keys=$(kubectl get configmap "${SERVICE_NAME}-cm-${SOURCE_NAMESPACE}" -n "${SOURCE_NAMESPACE}" -o json | jq -r '.data | keys[]')
+    source_count=$(echo "$source_keys" | wc -l)
+    keys_map["$SOURCE_NAMESPACE"]="$source_keys"
+
+    # Function to format keys as comma-separated string if there are multiple keys
+    formatKeys() {
+        local keys_str=""
+        for key in "$@"; do
+            if [ -z "$keys_str" ]; then
+                keys_str="$key"
+            else
+                keys_str="$keys_str, $key"
+            fi
+        done
+        echo "$keys_str"
+    }
+
     # Function to print horizontal line
     printHorizontalLine() {
         printf "%-20s" "--------------------"
@@ -69,24 +75,41 @@ conflictkeys() {
         done
         echo ""
     }
+
     # Print header row
+    printf "%-20s" "Namespace"
     printf "%-20s" "$SOURCE_NAMESPACE"  # Include source namespace in header
     for namespace in "${NAMESPACE_ARRAY[@]}"; do
         printf "%-20s" "$namespace"
     done
     echo ""
+    printHorizontalLine
 
+    # Print count row
+    printf "%-20s" "Count"
+    printf "%-20s" "$source_count"  # Include source count
+    for namespace in "${NAMESPACE_ARRAY[@]}"; do
+        # Retrieve keys for ConfigMap in the current namespace
+        keys=$(kubectl get configmap "${SERVICE_NAME}-cm-${namespace}" -n "${namespace}" -o json | jq -r '.data | keys[]')
 
-    printHorizontalLine #Horizontal line after env row
+        # Store the keys in the keys_map array
+        keys_map["$namespace"]="$keys"
 
-    # Print keys row for Source Namespace
-    for key in $source_keys; do
-        printf "%-20s" "$key"
-        for namespace in $(echo "$CM_NAMESPACES" | tr ',' ' '); do
-            exists=$(key_exists "$key" "$namespace" "$SERVICE_NAME")
-            printf "%-20s" "$exists"
-            done
-            echo ""
+        # Count the number of keys
+        count=$(echo "$keys" | wc -l)
+
+        # Print count
+        printf "%-20s" "$count"
     done
+    echo ""
+    printHorizontalLine  # Horizontal line after count row
 
+    # Print keys row for source namespace
+    printf "%-20s" "Keys"
+    printf "%-20s" "$(formatKeys ${keys_map["$SOURCE_NAMESPACE"]})"
+    for namespace in "${NAMESPACE_ARRAY[@]}"; do
+        printf "%-20s" "$(formatKeys ${keys_map["$namespace"]})"
+    done
+    echo ""
+    printHorizontalLine
 }
