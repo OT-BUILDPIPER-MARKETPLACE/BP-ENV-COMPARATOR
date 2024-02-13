@@ -6,11 +6,11 @@ serviceExists() {
 if
 	kubectl get deployments -n $SOURCE_NAMESPACE | grep -q $SERVICE_NAME
 then 
-	echo "Service '$SERVICE_NAME' exists in the given namespace '$SOURCE_NAMESPACE'"
+	echo "Service '$SERVICE_NAME' exists in the given Environment '$SOURCE_NAMESPACE'"
 	return 0 # Service Exixts
 
 else
-        echo "Service '$SERVICE_NAME' does not exist in the given namespace '$SOURCE_NAMESPACE'"
+        echo "Service '$SERVICE_NAME' does not exist in the given Environment '$SOURCE_NAMESPACE'"
         return 1  # Service does not exist
 fi
 }
